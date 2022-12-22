@@ -27,6 +27,7 @@ class Moysklad:
         data_from_urls = []
         final_data = []
         session = self.session
+        count = 0
         for obj in urls_data:
             for el in obj:
                 data = obj[el]
@@ -36,6 +37,9 @@ class Moysklad:
                 counterparty_name_json = await counterparty_name_response.json()
                 administrator_response = await session.get(data['administrator'])
                 administrator_json = await administrator_response.json()
+                count += 3
+                if count % 45 == 0:
+                    await asyncio.sleep(1)
                 data_from_urls.append({
                     el: {
                         'ext_code': data['ext_code'],
@@ -55,6 +59,9 @@ class Moysklad:
                 for obj in data['positions']['rows']:
                     assortment = await session.get(obj['assortment']['meta']['href'])
                     assortment = await assortment.json()
+                    count += 1
+                    if count % 45 == 0:
+                        await asyncio.sleep(1)
                     obj['product'] = assortment
         for url in data_from_urls:
             for el in url:
@@ -69,6 +76,10 @@ class Moysklad:
                     if supplier_data:
                         supplier = await session.get(supplier_url)
                         supplier = await supplier.json()
+
+                        count += 1
+                        if count % 45 == 0:
+                            await asyncio.sleep(1)
                         obj['product']['supplier'] = supplier['name']
         for el in data_from_urls:
             for obj in el:
@@ -151,6 +162,7 @@ class Moysklad:
         urls_data = self.get_urls_demand_data(retail_demand_url)
         data_from_urls = []
         final_data = []
+        count = 0
         session = self.session
         for obj in urls_data:
             for el in obj:
@@ -159,6 +171,11 @@ class Moysklad:
                 positions_json = await positions_response.json()
                 counterparty_name_response = await session.get(data['counterparty_name'])
                 counterparty_name_json = await counterparty_name_response.json()
+
+                count += 2
+                if count % 45 == 0:
+                    await asyncio.sleep(1)
+                print(counterparty_name_json)
                 data_from_urls.append({
                     el: {
                         'ext_code': data['ext_code'],
@@ -178,6 +195,10 @@ class Moysklad:
                 for obj in data['positions']['rows']:
                     assortment = await session.get(obj['assortment']['meta']['href'])
                     assortment = await assortment.json()
+
+                    count += 1
+                    if count % 45 == 0:
+                        await asyncio.sleep(1)
                     obj['product'] = assortment
         for url in data_from_urls:
             for el in url:
@@ -192,6 +213,10 @@ class Moysklad:
                     if supplier_data:
                         supplier = await session.get(supplier_url)
                         supplier = await supplier.json()
+
+                        count += 1
+                        if count % 45 == 0:
+                            await asyncio.sleep(1)
                         obj['product']['supplier'] = supplier['name']
         for el in data_from_urls:
             for obj in el:
