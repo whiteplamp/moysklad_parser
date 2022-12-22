@@ -447,17 +447,14 @@ class Moysklad:
                 try:
                     path_name = position['product']['pathName']
                 except Exception as error:
-                    print(error)
                     path_name = ' / '
                 try:
                     category_level_1 = path_name.split('/')[0]
                 except Exception as error:
-                    print(error)
                     category_level_1 = ''
                 try:
                     category_level_2 = path_name.split('/')[1]
                 except Exception as error:
-                    print(error)
                     category_level_2 = ''
 
                 losses_data.append({
