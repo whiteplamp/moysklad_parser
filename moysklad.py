@@ -357,7 +357,6 @@ class Moysklad:
                     article = row['article']
                 except Exception as error:
                     article = None
-                    print(error)
                 try:
                     category = row['folder']['pathName'].split('/')
                 except Exception as error:
