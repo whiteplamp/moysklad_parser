@@ -37,14 +37,31 @@ class Moysklad:
                 counterparty_name_json = await counterparty_name_response.json()
                 administrator_response = await session.get(data['administrator'])
                 administrator_json = await administrator_response.json()
+                try:
+                    name = counterparty_name_json['name']
+                except Exception:
+                    await asyncio.sleep(5)
+                    counterparty_name_response = await session.get(data['counterparty_name'])
+                    counterparty_name_json = await counterparty_name_response.json()
+                    print('COUNTERPARTY NAME ERRORED')
+                    await asyncio.sleep(2)
+                try:
+                    name = administrator_json['name']
+                except Exception:
+                    await asyncio.sleep(5)
+                    administrator_response = await session.get(data['administrator'])
+                    administrator_json = await counterparty_name_response.json()
+                    print('ADMIN NAME ERRORED')
+                    await asyncio.sleep(2)
+
                 count += 3
                 if count % 45 == 0:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                 data_from_urls.append({
                     el: {
                         'ext_code': data['ext_code'],
                         'positions': positions_json,
-                        'administrator': administrator_json,
+                        'administrator': administrator_json['name'],
                         'counterparty_name': counterparty_name_json['name'],
                         'date': data['date'],
                         'time': data['time'],
@@ -61,7 +78,7 @@ class Moysklad:
                     assortment = await assortment.json()
                     count += 1
                     if count % 45 == 0:
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(2)
                     obj['product'] = assortment
         for url in data_from_urls:
             for el in url:
@@ -70,9 +87,15 @@ class Moysklad:
                     supplier_data = True
                     try:
                         supplier_url = obj['product']['supplier']['meta']['href']
-                    except Exception as error:
-                        supplier_url = ''
-                        supplier_data = False
+                    except KeyError:
+                        try:
+                            supplier_response = await session.get(obj['product']['product']['meta']['href'])
+                            supplier_json = await supplier_response.json()
+                            supplier_url = supplier_json['supplier']['meta']['href']
+                            obj['product']['pathName'] = supplier_json['pathName']
+                        except:
+                            supplier_url = ''
+                            supplier_data = False
                     if supplier_data:
                         supplier = await session.get(supplier_url)
                         supplier = await supplier.json()
@@ -80,7 +103,7 @@ class Moysklad:
                         count += 1
                         if count % 45 == 0:
                             await asyncio.sleep(1)
-                        obj['product']['supplier'] = supplier['name']
+                        obj['product']['supplier'] = supplier
         for el in data_from_urls:
             for obj in el:
                 data = el[obj]
@@ -96,7 +119,7 @@ class Moysklad:
                     product = position['product']
                     product_name = product['name']
                     try:
-                        supplier = product['supplier']
+                        supplier = product['supplier']['name']
                     except Exception as error:
                         supplier = ''
                     try:
@@ -139,8 +162,8 @@ class Moysklad:
                         'date': date,
                         'time': time,
                         'product_name': product_name,
-                        'category_level_1': category_level_1,
-                        'category_level_2': category_level_2,
+                        'category_level1': category_level_1,
+                        'category_level2': category_level_2,
                         'code': code,
                         'article': article,
                         'barcode': barcode,
@@ -175,7 +198,6 @@ class Moysklad:
                 count += 2
                 if count % 45 == 0:
                     await asyncio.sleep(1)
-                print(counterparty_name_json)
                 data_from_urls.append({
                     el: {
                         'ext_code': data['ext_code'],
@@ -207,9 +229,15 @@ class Moysklad:
                     supplier_data = True
                     try:
                         supplier_url = obj['product']['supplier']['meta']['href']
-                    except Exception as error:
-                        supplier_url = ''
-                        supplier_data = False
+                    except KeyError:
+                        try:
+                            supplier_response = await session.get(obj['product']['product']['meta']['href'])
+                            supplier_json = await supplier_response.json()
+                            supplier_url = supplier_json['supplier']['meta']['href']
+                            obj['product']['pathName'] = supplier_json['pathName']
+                        except:
+                            supplier_url = ''
+                            supplier_data = False
                     if supplier_data:
                         supplier = await session.get(supplier_url)
                         supplier = await supplier.json()
@@ -277,8 +305,8 @@ class Moysklad:
                         'date': date,
                         'time': time,
                         'product_name': product_name,
-                        'category_level_1': category_level_1,
-                        'category_level_2': category_level_2,
+                        'category_level1': category_level_1,
+                        'category_level2': category_level_2,
                         'code': code,
                         'article': article,
                         'barcode': barcode,
@@ -357,17 +385,32 @@ class Moysklad:
         url = 'https://online.moysklad.ru/api/remap/1.2/report/stock/all'
         data = self.get_urls_stocks(url)
         session = self.session
+        count = 0
         for row in data:
-            supplier_response = await session.get(row['supplier'])
-            supplier_json = await supplier_response.json()
+            product_response = await session.get(row['product'])
+            product_json = await product_response.json()
+            count += 1
+            if count % 45 == 0:
+                await asyncio.sleep(1)
+            row['product'] = product_json
             try:
-                row['supplier'] = supplier_json['supplier']['meta']['href']
-            except Exception:
-                row['supplier'] = None
+                row['supplier'] = product_json['supplier']['meta']['href']
+            except KeyError:
+                try:
+                    row['supplier'] = product_json['product']['supplier']['meta']['href']
+                except:
+                    row['supplier'] = None
+            for el in product_json['salePrices']:
+                if el['priceType']['name'] == 'Цена опт':
+                    row['whole_sale_price'] = el['value']
+        await asyncio.sleep(10)
         for row in data:
             if row['supplier']:
                 supplier_response = await session.get(row['supplier'])
                 supplier_json = await supplier_response.json()
+                count += 1
+                if count % 45 == 0:
+                    await asyncio.sleep(1)
                 row['supplier'] = supplier_json['name']
 
         return data
@@ -387,16 +430,18 @@ class Moysklad:
                 except Exception as error:
                     category = ['', '']
                 try:
-                    category_level_1 = category[0]
+                    category_level_1 = row['folder']['pathName']
                 except Exception:
                     category_level_1 = ''
                 try:
-                    category_level_2 = category[1]
+                    category_level_2 = row['folder']['name']
+
                 except Exception:
                     category_level_2 = ''
                 url_stocks.append({
                     'ext_code': str(row['externalCode']),
                     'date': datetime.datetime.now().strftime('%Y-%m-%d'),
+                    'time': datetime.datetime.now().strftime('%H:%M'),
                     'code': row['code'],
                     'article': article,
                     'product_name': row['name'],
@@ -412,7 +457,7 @@ class Moysklad:
                     'stock_days': float(row['stockDays']),
                     'category_level_1': category_level_1,
                     'category_level_2': category_level_2,
-                    'supplier': row['meta']['href'],
+                    'product': row['meta']['href'],
                 })
             try:
                 data = requests.get(data['meta']['nextHref'], headers=self.auth_header).json()
@@ -451,9 +496,15 @@ class Moysklad:
                 supplier_exist = True
                 try:
                     supplier_href = position['product']['supplier']['meta']['href']
-                except Exception as error:
-                    supplier_exist = False
-                    supplier_href = ''
+                except KeyError:
+                    try:
+                        supplier_response = await session.get(position['product']['product']['meta']['href'])
+                        supplier_json = await supplier_response.json()
+                        supplier_href = supplier_json['supplier']['meta']['href']
+                        position['product']['pathName'] = supplier_json['pathName']
+                    except:
+                        supplier_href = ''
+                        supplier_exist = False
                 if supplier_exist:
                     supplier_response = await session.get(supplier_href)
                     supplier = await supplier_response.json()

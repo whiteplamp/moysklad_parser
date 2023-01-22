@@ -11,9 +11,9 @@ def moysklad_stock_fetching(data):
     engine = create_engine(DATABASE_PATH)
     conn = engine.connect()
     metadata = MetaData()
-    insert_data = []  # Data which will be inserted into table
-    products = Table('moysklad_stock', metadata,
+    products = Table('moysklad_stocks', metadata,
                      Column('date', Date()),
+                     Column('time', Text()),
                      Column('code', Text()),
                      Column('article', Text()),
                      Column('supplier', Text()),
@@ -24,6 +24,7 @@ def moysklad_stock_fetching(data):
                      Column('units_wait', Integer()),
                      Column('units_stock', Integer()),
                      Column('cost', Float()),
+                     Column('whole_sale_price', Float()),
                      Column('cost_sum', Float()),
                      Column('price', Float()),
                      Column('price_sum', Float()),
@@ -34,17 +35,36 @@ def moysklad_stock_fetching(data):
                      )
     metadata.create_all(engine)
     for el in data:
-
-        insert_data.append(el)
-
-        if len(insert_data) == 1000:
-            ins = products.insert().values(insert_data)
+        sel = products.select().where(products.c.date == el['date'], products.c.product_name == el['product_name'])
+        info = conn.execute(sel).scalars().fetchall()
+        if len(info) > 0:
+            upd = products.update().\
+                where(products.c.date == el['date'], products.c.product_name == el['product_name']). \
+                values(
+                    code=el['code'],
+                    time=el['time'],
+                    article=el['article'],
+                    supplier=el['supplier'],
+                    unit_name=el['unit_name'],
+                    units_aval=el['units_aval'],
+                    units_reserve=el['units_reserve'],
+                    units_wait=el['units_wait'],
+                    units_stock=el['units_stock'],
+                    cost=el['cost'],
+                    cost_sum=el['cost_sum'],
+                    price=el['price'],
+                    price_sum=el['price_sum'],
+                    stock_days=el['stock_days'],
+                    ext_code=el['ext_code'],
+                    category_level_1=el['category_level_1'],
+                    category_level_2=el['category_level_2'],
+                    whole_sale_price=el['whole_sale_price'],
+            )
+            conn.execute(upd)
+        else:
+            ins = products.insert().values(el)
             conn.execute(ins)
-            insert_data = []
 
-    if len(insert_data) > 0:
-        ins = products.insert().values(insert_data)
-        conn.execute(ins)
     conn.close()
     engine.dispose()
 
@@ -95,15 +115,15 @@ def moysklad_revenue_fetching(products_json):
     conn = engine.connect()
     metadata = MetaData()
 
-    products = Table('moysklad_revenue', metadata,
+    products = Table('revenue_moysklad', metadata,
                      Column('ext_code', Text()),
                      Column('date', Date()),
                      Column('time', Text()),
                      Column('product_name', Text()),
                      Column('administrator', Text()),
                      Column('counterparty_name', Text()),
-                     Column('category_level_1', Text()),
-                     Column('category_level_2', Text()),
+                     Column('category_level1', Text()),
+                     Column('category_level2', Text()),
                      Column('code', Text()),
                      Column('article', Text()),
                      Column('barcode', Text()),
@@ -117,7 +137,7 @@ def moysklad_revenue_fetching(products_json):
                      )
 
     metadata.create_all(engine)
-    sql = text('DELETE FROM moysklad_revenue')
+    sql = text('DELETE FROM revenue_moysklad')
     engine.execute(sql)
     for el in products_json:
         ins = products.insert().values(el)
@@ -127,22 +147,22 @@ def moysklad_revenue_fetching(products_json):
 
 
 async def main():
+    moysklad = Moysklad(LOGIN, PASSWORD)
+
     while True:
-        moysklad = Moysklad(LOGIN, PASSWORD)
         time_start = datetime.datetime.now()
         print('Start parsing moysklad_revenue')
+        await asyncio.sleep(10)
         try:
             moysklad_revenue = await moysklad.get_demands()
+            await asyncio.sleep(10)
             moysklad_revenue.extend(await moysklad.get_retail_demands())
             print('Start fetching data to moysklad_revenue_table')
             moysklad_revenue_fetching(moysklad_revenue)
         except Exception as error:
-            print("moysklad_revenue parsing errored")
+            print('revenue_moysklad parsing errored')
             print(error)
-
         await asyncio.sleep(10)
-
-        print('Start parsing moysklad_loss')
         try:
             moysklad_loss = await moysklad.get_losses()
             print('Start fetching data to moysklad_loss_table')
@@ -162,7 +182,6 @@ async def main():
             print("moysklad_stock parsing errored")
             print(error)
         print('TIME:', datetime.datetime.now() - time_start)
-        await moysklad.end_of_parsing()
 
 if __name__ == '__main__':
     asyncio.run(main())
